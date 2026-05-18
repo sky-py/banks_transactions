@@ -1,0 +1,57 @@
+[
+  {
+    "field": "occurred_at",
+    "column": 1,
+    "header": "Дата оплаты"
+  },
+  {
+    "field": "external_id",
+    "column": 2,
+    "header": "id платежа"
+  },
+  {
+    "field": "counterparty",
+    "column": 3,
+    "header": "Кому/От кого"
+  },
+  {
+    "field": "description",
+    "column": 4,
+    "header": "Назначение платежа"
+  },
+  {
+    "field": "amount",
+    "column": 5,
+    "header": "Сумма"
+  },
+  {
+    "field": "fio",
+    "column": 6,
+    "header": "ФИО клиента"
+  },
+  {
+    "field": "supplier",
+    "column": 7,
+    "header": "Поставщик"
+  },
+  {
+    "field": "order_id_1c",
+    "column": 8,
+    "header": "Номер заказа"
+  },  
+  {
+    "field": "manager",
+    "column": 9,
+    "header": "Менеджер"
+  },
+  {
+    "field": "bank_balance",
+    "column": 10,
+    "header": "Остаток по карте/счёту"
+  },
+  {
+    "field": "calculated_balance",
+    "column": 11,
+    "header": "Контроль баланса"
+  }
+]

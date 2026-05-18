@@ -1,0 +1,22 @@
+{
+  "ФОП Иванов Приват": {
+    "bank_type": "privat",
+    "sheet_name": "Иванов",
+    "iban": "UA123456789012345678901234567",
+    "token": "your-token",
+    "id": "your-client-id"
+  },
+  "ФОП Петров Universal": {
+    "bank_type": "universal",
+    "sheet_name": "Петров",
+    "iban": "UA987654321098765432109876543",
+    "client_path": "C:/path/to/universal/client",
+    "executable_path": "C:/path/to/universal/client/bin/export.bat"
+  },
+  "ФОП Сидоров Mono": {
+    "bank_type": "monobank",
+    "sheet_name": "Сидоров",
+    "iban": "UA111111111111111111111111111",
+    "token": "mono-personal-token"
+  }
+}
