@@ -1,4 +1,3 @@
-import argparse
 import asyncio
 from datetime import date, datetime, time
 from config.settings import load_settings
@@ -77,19 +76,9 @@ async def requeue_transactions_for_export(
 
 
 if __name__ == '__main__':
-    # parser = argparse.ArgumentParser(description='Put existing transactions back to pending outbox export.')
-    # parser.add_argument('source_name')
-    # parser.add_argument('start_date', help='dd.mm.yyyy')
-    # parser.add_argument('end_date', nargs='?', help='dd.mm.yyyy, defaults to now')
-    # args = parser.parse_args()
-
     source_name = ''
     start_date = '16.04.2026'
     end_date = None
-
-    # source_name = args.source_name or source_name
-    # start_date = args.start_date or start_date
-    # end_date = args.end_date or end_date
 
     count = asyncio.run(
         requeue_transactions_for_export(

@@ -41,6 +41,7 @@ class ExportOrchestrator:
         for exporter in self.exporters:
             try:
                 await exporter.export_transactions(transactions)
+                # logger.info(f'Exported transactions through fake {exporter.__class__.__name__}')
             except Exception as exc:
                 logger.error(f'Failed to export transactions through {exporter.__class__.__name__}: {exc}')
                 raise

@@ -159,8 +159,8 @@ class NovapayAdapter(BankAdapter):
 
         result_status = self._optional_text(result, 'result')
         if result_status and result_status.lower() != 'ok':
-            message = self._optional_text(result, 'message') or self._optional_text(result, 'error') or result_status
-            raise BankAdapterError(f'Novapay {method} failed: {message}')
+            result_xml = ET.tostring(result, encoding='unicode')
+            raise BankAdapterError(f'Novapay {method} failed: {result_xml}')
 
         return result
 

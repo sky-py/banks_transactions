@@ -210,8 +210,8 @@ class RichLogMulti:
     @property
     def visible_log(self) -> Text:
         console_width = self._console.size.width - 4
-        log_height = self._layout['log'].size or (self._console.size.height - 3 - max(1, len(self._shops)) * 3)
-        max_lines = max(0, log_height - 2)
+        log_panel_height = self._get_log_panel_height()
+        max_lines = max(0, log_panel_height - 2)
         wrapped_lines = []
         for msg in self._log:
             line_style = self._get_log_style(msg)
@@ -224,6 +224,12 @@ class RichLogMulti:
             log_visible.append_text(line)
             log_visible.append('\n')
         return log_visible
+
+    def _get_log_panel_height(self) -> int:
+        used_height = 3 + self._shop_rows_count * 3
+        if self._global_timer_visible:
+            used_height += 3
+        return max(3, self._console.size.height - used_height)
 
     def _get_log_style(self, msg: str) -> str | None:
         for shop_name, style in self._shop_styles.items():
