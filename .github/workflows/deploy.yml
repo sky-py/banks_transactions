@@ -1,9 +1,9 @@
-name: Deploy
+﻿name: Deploy
 
 on:
   push:
     branches:
-      - master
+      - main
 
 jobs:
   deploy:
@@ -11,7 +11,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Execute commands via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -23,4 +23,6 @@ jobs:
           script: >
            cmd /c "cd /Scripts/banks_transactions &&
            git fetch --all &&
-           git reset --hard origin/master"
+           git reset --hard origin/main &&
+           echo > main.reload"
+
