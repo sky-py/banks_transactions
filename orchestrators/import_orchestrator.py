@@ -95,6 +95,7 @@ class ImportOrchestrator:
                 f'Import task FAILED for {result.source_name} '
                 f'{self.source_errors[result.source_name]} times in a row: {result.error}'
             )
+            self.source_errors[result.source_name] = 0
             return
         logger.bind(source_name=result.source_name).info(
             f'FAILED {self.source_errors[result.source_name]}/{BANK_ERROR_AFTER_ERRORS}: {result.error}'

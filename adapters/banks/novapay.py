@@ -2,7 +2,7 @@ import asyncio
 import json
 import uuid
 import xml.etree.ElementTree as ET
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 import httpx
@@ -19,6 +19,7 @@ TEMPURI_NS = 'http://tempuri.org/'
 SOAP_ACTION_BASE = 'http://tempuri.org/IClientAPIService/'
 CONDUCTED_DATE_TYPE = 0
 CONDUCTED_STATUS_DOCUMENT_ID = '8'
+USER_NOT_LOGGED_IN_TITLE = 'user not logged in'
 
 
 class NovapayAdapter(BankAdapter):
@@ -30,7 +31,6 @@ class NovapayAdapter(BankAdapter):
         self.token_file = token_file
         self.source_name = source_name
         self.jwt: str | None = None
-        self.jwt_expires_at: datetime | None = None
         self.auth_lock = asyncio.Lock()
         self.novapay_account_id: int | None = None
         self.client = httpx.AsyncClient(timeout=REQUEST_TIMEOUT)
@@ -55,18 +55,18 @@ class NovapayAdapter(BankAdapter):
         await self.client.aclose()
 
     async def _get_jwt(self) -> str:
-        if self.jwt is not None and not self._is_jwt_expired():
+        if self.jwt is not None:
             return self.jwt
 
         async with self.auth_lock:
-            if self.jwt is None or self._is_jwt_expired():
+            if self.jwt is None:
                 self.jwt = await self._authenticate()
         return self.jwt
 
-    def _is_jwt_expired(self) -> bool:
-        if self.jwt_expires_at is None:
-            return False
-        return datetime.now() >= self.jwt_expires_at - timedelta(minutes=5)   # JWT_EXPIRATION_MARGIN
+    async def _refresh_jwt(self) -> str:
+        async with self.auth_lock:
+            self.jwt = await self._authenticate()
+            return self.jwt
 
     async def _authenticate(self) -> str:
         token_data = self._load_token_data()
@@ -83,7 +83,6 @@ class NovapayAdapter(BankAdapter):
         jwt = self._required_text(result, 'jwt')
         new_token = self._required_text(result, 'refresh_token')
         new_certificate = self._required_text(result, 'public_certificate')
-        self.jwt_expires_at = self._parse_optional_expiration(self._optional_text(result, 'expiration'))
         self._save_token_data(token=new_token, certificate=new_certificate)
         return jwt
 
@@ -138,31 +137,40 @@ class NovapayAdapter(BankAdapter):
         return self._optional_text(result, 'payments') or ''
 
     async def _call_soap(self, method: str, payload: dict[str, object]) -> ET.Element:
-        request_body = self._build_soap_envelope(method, payload)
-        response = await self.client.post(
-            self.API_URL,
-            content=request_body,
-            headers={'Content-Type': 'text/xml; charset=utf-8', 'SOAPAction': f'"{SOAP_ACTION_BASE}{method}"'},
-        )
-        if response.is_error:
-            safe_request_body = self._safe_xml_for_log(request_body)
-            logger.error(
-                f'Novapay {method} returned HTTP {response.status_code}. '
-                f'Response body: {response.text}. Request body: {safe_request_body}'
+        for attempt in range(2):
+            request_body = self._build_soap_envelope(method, payload)
+            response = await self.client.post(
+                self.API_URL,
+                content=request_body,
+                headers={'Content-Type': 'text/xml; charset=utf-8', 'SOAPAction': f'"{SOAP_ACTION_BASE}{method}"'},
             )
-            raise BankAdapterError(f'Novapay {method} returned HTTP {response.status_code}')
+            if response.is_error:
+                safe_request_body = self._safe_xml_for_log(request_body)
+                logger.error(
+                    f'Novapay {method} returned HTTP {response.status_code}. '
+                    f'Response body: {response.text}. Request body: {safe_request_body}'
+                )
+                raise BankAdapterError(f'Novapay {method} returned HTTP {response.status_code}')
 
-        root = ET.fromstring(response.text)
-        result = self._find_first_by_suffix(root, f'{method}Result')
-        if result is None:
-            raise BankAdapterError(f'Novapay response has no {method}Result')
+            root = ET.fromstring(response.text)
+            result = self._find_first_by_suffix(root, f'{method}Result')
+            if result is None:
+                raise BankAdapterError(f'Novapay response has no {method}Result')
 
-        result_status = self._optional_text(result, 'result')
-        if result_status and result_status.lower() != 'ok':
+            result_status = self._optional_text(result, 'result')
+            if not result_status or result_status.lower() == 'ok':
+                return result
+
+            if attempt == 0 and 'jwt' in payload and self._is_user_not_logged_in(result):
+                logger.bind(source_name=self.source_name).info('NovaPay session expired, refreshing JWT')
+                payload = dict(payload)
+                payload['jwt'] = await self._refresh_jwt()
+                continue
+
             result_xml = ET.tostring(result, encoding='unicode')
             raise BankAdapterError(f'Novapay {method} failed: {result_xml}')
 
-        return result
+        raise BankAdapterError(f'Novapay {method} failed after JWT refresh')
 
     def _build_soap_envelope(self, method: str, payload: dict[str, object]) -> bytes:
         envelope = ET.Element(f'{{{SOAP_NS}}}Envelope')
@@ -175,6 +183,12 @@ class NovapayAdapter(BankAdapter):
             element.text = str(value)
 
         return ET.tostring(envelope, encoding='utf-8', xml_declaration=True)
+
+    def _is_user_not_logged_in(self, result: ET.Element) -> bool:
+        title = self._optional_text(result, 'title')
+        if title is None:
+            return False
+        return title.strip().lower().rstrip('.') == USER_NOT_LOGGED_IN_TITLE
 
     def _safe_xml_for_log(self, request_body: bytes) -> str:
         try:
@@ -253,25 +267,6 @@ class NovapayAdapter(BankAdapter):
             except ValueError:
                 continue
         raise BankAdapterError(f'Unsupported Novapay date format: {value}')
-
-    def _parse_optional_expiration(self, value: str | None) -> datetime | None:
-        if value is None:
-            return None
-
-        normalized = value.strip().replace('Z', '+00:00')
-        try:
-            expiration = datetime.fromisoformat(normalized)
-        except ValueError:
-            for date_format in ('%d.%m.%Y %H:%M:%S', '%Y-%m-%d %H:%M:%S'):
-                try:
-                    return datetime.strptime(normalized, date_format)
-                except ValueError:
-                    continue
-            return None
-
-        if expiration.tzinfo is not None:
-            return expiration.astimezone().replace(tzinfo=None)
-        return expiration
 
     def _load_token_data(self) -> dict[str, str]:
         try:
