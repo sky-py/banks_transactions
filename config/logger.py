@@ -22,11 +22,11 @@ RICH_LOG_FORMAT = (
 
 class RichLogger(Protocol):
     def print_log(self, text: str) -> None: ...
-    def print_to_request_area(self, area: str, text: str) -> None: ...
+    def print_to_area(self, text: str, area: str = 'request', shop_name: str | None = None) -> None: ...
 
 
-def has_source_name(record) -> bool:
-    return 'source_name' in record['extra']
+def has_rich_area(record) -> bool:
+    return 'area' in record['extra']
 
 
 def get_caller_log_name() -> str:
@@ -70,21 +70,22 @@ def logger_init(
             format=short_log_formatter(log_cut_after, rich_log_format),
             level='INFO',
             colorize=rich_log_colorize,
-            filter=lambda record: not has_source_name(record),
+            filter=lambda record: not has_rich_area(record),
         )
         logger.add(
-            sink=lambda msg: rich_log.print_to_request_area(
-                msg.record['extra']['source_name'],
+            sink=lambda msg: rich_log.print_to_area(
                 msg.record['message'],
+                area=msg.record['extra']['area'],
+                shop_name=msg.record['extra'].get('source_name'),
             ),
             level='INFO',
-            filter=has_source_name,
+            filter=has_rich_area,
         )
     logger.add(
         sink=log_dir / f'{log_name}.log',
         format=short_log_formatter(log_cut_after),
         level='INFO',
-        filter=lambda record: not has_source_name(record),
+        filter=lambda record: not has_rich_area(record),
         rotation=LOG_ROTATION,
         retention=LOG_RETENTION,
         compression='zip',
@@ -96,7 +97,7 @@ def logger_init(
         level='DEBUG',
         backtrace=True,
         diagnose=True,
-        filter=lambda record: not has_source_name(record),
+        filter=lambda record: not has_rich_area(record),
         rotation=LOG_ROTATION,
         retention=LOG_RETENTION,
         compression='zip',

@@ -64,7 +64,7 @@ class ImportOrchestrator:
         except Exception as exc:
             return ImportResult(source_name=source_name, error=exc)
 
-        logger.bind(source_name=source_name).info(f'Fetched {len(fetched_transactions)} transactions')
+        logger.bind(area='request', source_name=source_name).info(f'Fetched {len(fetched_transactions)} transactions')
         unique_ids = [transaction.unique_id for transaction in fetched_transactions]
 
         async with self.uow_factory() as uow:
@@ -97,6 +97,6 @@ class ImportOrchestrator:
             )
             self.source_errors[result.source_name] = 0
             return
-        logger.bind(source_name=result.source_name).info(
+        logger.bind(area='request', source_name=result.source_name).info(
             f'FAILED {self.source_errors[result.source_name]}/{BANK_ERROR_AFTER_ERRORS}: {result.error}'
         )

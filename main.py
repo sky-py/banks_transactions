@@ -70,7 +70,7 @@ async def worker(
         try:
             imported_count = await import_orchestrator.import_transactions(start_date=start_date, end_date=end_date)
             exported_count = await export_orchestrator.export_pending()
-            logger.info(f'Worker iteration completed: imported {imported_count}, exported {exported_count}')
+            logger.bind(area='global').info(f'ALL: imported {imported_count}, exported {exported_count}')
             errors_num = 0
         except Exception as exc:
             errors_num += 1
@@ -127,7 +127,7 @@ if __name__ == '__main__':
     rich_log = RichLogMulti(
         header=f'Транзакции банков - {__file__}',
         shop_names=[source_name for source_name in settings.bank_sources.keys()],
-        header_style='bold white on magenta',
+        header_style='bold white on green',
     )
     logger_init(rich_log=rich_log, log_cut_after='=>', service_notifier=build_service_tg_sender(settings.telegram))
     logger.info(f'STARTING {__file__}')

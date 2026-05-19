@@ -155,14 +155,14 @@ class NovapayAdapter(BankAdapter):
             root = ET.fromstring(response.text)
             result = self._find_first_by_suffix(root, f'{method}Result')
             if result is None:
-                raise BankAdapterError(f'Novapay response has no {method}Result')
+                raise BankAdapterError(f'Novapay response has no {method} Result')
 
             result_status = self._optional_text(result, 'result')
             if not result_status or result_status.lower() == 'ok':
                 return result
 
             if attempt == 0 and 'jwt' in payload and self._is_user_not_logged_in(result):
-                logger.bind(source_name=self.source_name).info('NovaPay session expired, refreshing JWT')
+                logger.info(f'NovaPay session for {self.source_name} expired, refreshing JWT')
                 payload = dict(payload)
                 payload['jwt'] = await self._refresh_jwt()
                 continue
