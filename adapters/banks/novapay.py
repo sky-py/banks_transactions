@@ -36,10 +36,9 @@ class NovapayAdapter(BankAdapter):
         self.client = httpx.AsyncClient(timeout=REQUEST_TIMEOUT)
 
     async def fetch_transactions(self, start_date: datetime, end_date: datetime) -> list[Transaction]:
-        jwt = await self._get_jwt()
-        novapay_account_id = await self._get_novapay_account_id(jwt)
-        payments_xml = await self._fetch_payments_xml(jwt, novapay_account_id, start_date, end_date)
-        bank_balance = await self._fetch_balance_with_jwt(jwt, novapay_account_id)
+        novapay_account_id = await self._get_novapay_account_id()
+        payments_xml = await self._fetch_payments_xml(novapay_account_id, start_date, end_date)
+        bank_balance = await self._fetch_balance(novapay_account_id)
         return [
             self._map_transaction(doc, bank_balance)
             for doc in self._parse_payment_docs(payments_xml)
@@ -47,9 +46,8 @@ class NovapayAdapter(BankAdapter):
         ]
 
     async def fetch_balance(self, at_datetime: datetime | None = None) -> int | None:
-        jwt = await self._get_jwt()
-        novapay_account_id = await self._get_novapay_account_id(jwt)
-        return await self._fetch_balance_with_jwt(jwt, novapay_account_id)
+        novapay_account_id = await self._get_novapay_account_id()
+        return await self._fetch_balance(novapay_account_id)
 
     async def aclose(self) -> None:
         await self.client.aclose()
@@ -78,6 +76,7 @@ class NovapayAdapter(BankAdapter):
                 'login': self.login,
                 'public_certificate': token_data['certificate'],
             },
+            auth=False,
         )
 
         jwt = self._required_text(result, 'jwt')
@@ -86,11 +85,11 @@ class NovapayAdapter(BankAdapter):
         self._save_token_data(token=new_token, certificate=new_certificate)
         return jwt
 
-    async def _get_novapay_account_id(self, jwt: str) -> int:
+    async def _get_novapay_account_id(self) -> int:
         if self.novapay_account_id is not None:
             return self.novapay_account_id
 
-        clients_result = await self._call_soap('GetClientsList', {'request_ref': self._request_ref(), 'jwt': jwt})
+        clients_result = await self._call_soap('GetClientsList', {'request_ref': self._request_ref()})
 
         for client_element in self._iter_by_local_name(clients_result, 'Clients'):
             client_id = self._optional_text(client_element, 'id')
@@ -98,7 +97,7 @@ class NovapayAdapter(BankAdapter):
                 continue
 
             accounts_result = await self._call_soap(
-                'GetAccountsList', {'request_ref': self._request_ref(), 'jwt': jwt, 'client_id': client_id}
+                'GetAccountsList', {'request_ref': self._request_ref(), 'client_id': client_id}
             )
             account_id = self._find_account_id(accounts_result)
             if account_id is not None:
@@ -107,9 +106,9 @@ class NovapayAdapter(BankAdapter):
 
         raise BankAdapterError(f'Novapay account with IBAN {self.iban} not found')
 
-    async def _fetch_balance_with_jwt(self, jwt: str, novapay_account_id: int) -> int:
+    async def _fetch_balance(self, novapay_account_id: int) -> int:
         result = await self._call_soap(
-            'GetAccountRest', {'request_ref': self._request_ref(), 'jwt': jwt, 'account_id': novapay_account_id}
+            'GetAccountRest', {'request_ref': self._request_ref(), 'account_id': novapay_account_id}
         )
         balance = (
             self._optional_text(result, 'confirmed_balance')
@@ -121,13 +120,12 @@ class NovapayAdapter(BankAdapter):
         return money_to_minor_units(balance)
 
     async def _fetch_payments_xml(
-        self, jwt: str, novapay_account_id: int, start_date: datetime, end_date: datetime
+        self, novapay_account_id: int, start_date: datetime, end_date: datetime
     ) -> str:
         result = await self._call_soap(
             'GetPaymentsList',
             {
                 'request_ref': self._request_ref(),
-                'jwt': jwt,
                 'account_id': novapay_account_id,
                 'date_from': start_date.strftime('%d.%m.%Y'),
                 'date_to': end_date.strftime('%d.%m.%Y'),
@@ -136,7 +134,11 @@ class NovapayAdapter(BankAdapter):
         )
         return self._optional_text(result, 'payments') or ''
 
-    async def _call_soap(self, method: str, payload: dict[str, object]) -> ET.Element:
+    async def _call_soap(self, method: str, payload: dict[str, object], auth: bool = True) -> ET.Element:
+        payload = dict(payload)
+        if auth:
+            payload['jwt'] = await self._get_jwt()
+
         for attempt in range(2):
             request_body = self._build_soap_envelope(method, payload)
             response = await self.client.post(
@@ -161,9 +163,8 @@ class NovapayAdapter(BankAdapter):
             if not result_status or result_status.lower() == 'ok':
                 return result
 
-            if attempt == 0 and 'jwt' in payload and self._is_user_not_logged_in(result):
+            if attempt == 0 and auth and self._is_user_not_logged_in(result):
                 logger.info(f'NovaPay session for {self.source_name} expired, refreshing JWT')
-                payload = dict(payload)
                 payload['jwt'] = await self._refresh_jwt()
                 continue
 
