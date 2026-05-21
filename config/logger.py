@@ -21,7 +21,7 @@ RICH_LOG_FORMAT = (
 
 
 class RichLogger(Protocol):
-    def print_log(self, text: str) -> None: ...
+    def print_log(self, text: str, source_name: str | None = None) -> None: ...
     def print_to_area(self, text: str, area: str = 'request', shop_name: str | None = None) -> None: ...
 
 
@@ -51,6 +51,18 @@ def short_log_formatter(cut_after: str | None, log_format: str = SHORT_LOG_FORMA
     return formatter
 
 
+def send_to_rich_log(message, rich_log: RichLogger) -> None:
+    source_name = message.record['extra'].get('source_name')
+    if source_name is None:
+        rich_log.print_log(str(message).rstrip())
+        return
+
+    short_message = message.record['extra'].get('short_message', message.record['message'])
+    created_at = message.record['time'].strftime('%Y-%m-%d at %H:%M:%S.%f')[:-3]
+    level_name = message.record['level'].name
+    rich_log.print_log(f'{created_at} | {level_name} | {short_message}', source_name=source_name)
+
+
 def logger_init(
     log_dir: Path = LOG_DIR,
     service_notifier: Callable[[str], None] | None = None,
@@ -66,7 +78,7 @@ def logger_init(
         rich_log_format = RICH_LOG_FORMAT if rich_log_colorize else SHORT_LOG_FORMAT
         logger.remove()
         logger.add(
-            sink=lambda msg: rich_log.print_log(str(msg).rstrip()),
+            sink=lambda msg: send_to_rich_log(msg, rich_log),
             format=short_log_formatter(log_cut_after, rich_log_format),
             level='INFO',
             colorize=rich_log_colorize,

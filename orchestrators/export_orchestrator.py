@@ -31,7 +31,7 @@ class ExportOrchestrator:
                 async with self.uow as uow:
                     await uow.outbox.mark_processed([entry.id for entry in source_entries])
                 exported_entries_num += len(source_entries)
-                logger.info(
+                logger.bind(source_name=source_name).info(
                     f'Exported to {source_name} transactions: {[entry.transaction.external_id for entry in source_entries]}'
                 )
 

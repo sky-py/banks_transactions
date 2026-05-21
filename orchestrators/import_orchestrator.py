@@ -73,7 +73,9 @@ class ImportOrchestrator:
             for transaction in fetched_transactions:
                 if transaction.unique_id not in existing_ids:
                     new_transactions.append(transaction)
-                    logger.info(f'{source_name} got transaction {transaction.unique_id} => {transaction}')
+                    logger.bind(source_name=source_name).info(
+                        f'{source_name} got transaction {transaction.unique_id} => {transaction}'
+                    )
 
             if not new_transactions:
                 return ImportResult(source_name=source_name)

@@ -164,7 +164,7 @@ class NovapayAdapter(BankAdapter):
                 return result
 
             if attempt == 0 and auth and self._is_user_not_logged_in(result):
-                logger.info(f'NovaPay session for {self.source_name} expired, refreshing JWT')
+                logger.bind(source_name=self.source_name).info(f'NovaPay session for {self.source_name} expired, refreshing JWT')
                 payload['jwt'] = await self._refresh_jwt()
                 continue
 

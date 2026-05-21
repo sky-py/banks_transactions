@@ -1,8 +1,7 @@
 import time
-from math import ceil
 from dataclasses import dataclass
+from math import ceil
 from threading import RLock
-
 from rich.align import Align
 from rich.console import Console
 from rich.layout import Layout
@@ -22,7 +21,21 @@ class _ShopRowState:
 
 
 class RichLogMulti:
-    SHOP_STYLES = ('green', 'yellow', 'blue', 'magenta', 'cyan', 'white', 'red')
+    SHOP_STYLES = (
+        'green',
+        'yellow',
+        'blue',
+        'magenta',
+        'cyan',
+        'white',
+        'red',
+        'bright_green',
+        'bright_yellow',
+        'bright_cyan',
+        'bright_red',
+        'bright_blue',
+        'bright_magenta',
+    )
 
     def __init__(self, header: str, shop_names: list[str], header_style='bold white on blue') -> None:
         self.header = header
@@ -41,7 +54,7 @@ class RichLogMulti:
         self._shop_styles = {
             shop_name: self.SHOP_STYLES[i % len(self.SHOP_STYLES)] for i, shop_name in enumerate(shop_names)
         }
-        self._log = []
+        self._log: list[tuple[str, str | None]] = []
         self._lock = RLock()
         self._console = Console()
         self._layout = Layout()
@@ -88,8 +101,11 @@ class RichLogMulti:
         visible_messages = self._log[-max_lines:]
 
         log_visible = Text()
-        for msg in visible_messages:
+        for msg, source_name in visible_messages:
             text_obj = Text.from_ansi(msg)
+            style = self._shop_styles.get(source_name) if source_name is not None else None
+            if style is not None:
+                text_obj.stylize(style)
             text_obj.no_wrap = True
             text_obj.overflow = 'crop'
             text_obj.truncate(max_width=console_width, overflow='crop')
@@ -118,14 +134,7 @@ class RichLogMulti:
         if shop.api_visible:
             grid.add_column(ratio=2)
 
-        panels = [
-            Panel(
-                Text(shop.request_text, style=shop_style),
-                title=shop_name,
-                height=3,
-                border_style=shop_style,
-            )
-        ]
+        panels = [Panel(Text(shop.request_text, style=shop_style), title=shop_name, height=3, border_style=shop_style)]
 
         if shop.timer_visible:
             panels.append(Panel(shop.timer_text, title='Timer', height=3, border_style=shop_style))
@@ -152,10 +161,7 @@ class RichLogMulti:
             for _ in range(self._shop_columns_count):
                 row_grid.add_column(ratio=1)
             row_grid.add_row(
-                *[
-                    self._render_shop_row(shop_name, shop)
-                    for shop_name, shop in row_items
-                ],
+                *[self._render_shop_row(shop_name, shop) for shop_name, shop in row_items],
                 *['' for _ in range(self._shop_columns_count - len(row_items))],
             )
             rows_grid.add_row(row_grid)
@@ -201,9 +207,9 @@ class RichLogMulti:
                     raise ValueError(f'Unknown rich log area: {area}')
             self._update_screen()
 
-    def print_log(self, text: str) -> None:
+    def print_log(self, text: str, source_name: str | None = None) -> None:
         with self._lock:
-            self._log.append(text.strip())
+            self._log.append((text.strip(), source_name))
             self._log = self._log[-100:]
             self._update_screen()
 
@@ -241,20 +247,14 @@ class RichLogMulti:
             with self._lock:
                 self._global_timer_visible = True
                 self._global_timer_text = self._build_timer_text(
-                    duration,
-                    elapsed,
-                    self.timer_style,
-                    bar_width=self._global_timer_bar_width(),
+                    duration, elapsed, self.timer_style, bar_width=self._global_timer_bar_width()
                 )
                 self._update_screen()
             elapsed += quantifier
             time.sleep(quantifier)
         with self._lock:
             self._global_timer_text = self._build_timer_text(
-                duration,
-                duration,
-                self.timer_style,
-                bar_width=self._global_timer_bar_width(),
+                duration, duration, self.timer_style, bar_width=self._global_timer_bar_width()
             )
             self._update_screen()
 
