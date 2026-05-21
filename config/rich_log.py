@@ -24,17 +24,16 @@ class RichLogMulti:
     SHOP_STYLES = (
         'green',
         'yellow',
-        'blue',
         'magenta',
         'cyan',
         'white',
         'red',
         'bright_green',
         'bright_yellow',
+        'bright_magenta',
         'bright_cyan',
         'bright_red',
         'bright_blue',
-        'bright_magenta',
     )
 
     def __init__(self, header: str, shop_names: list[str], header_style='bold white on blue') -> None:
@@ -77,9 +76,11 @@ class RichLogMulti:
     def _get_shop_columns_count(self, shops_count: int) -> int:
         if shops_count <= 4:
             return 1
-        if shops_count <= 12:
+        if shops_count <= 8:
             return 2
-        return 3
+        if shops_count < 16:
+            return 3
+        return 4
 
     def _build_timer_text(self, duration: float, elapsed: float, style: str, bar_width: int = 24) -> Text:
         total = max(duration, 0.1)
