@@ -91,7 +91,7 @@ class PrivatAdapter(BankAdapter):
 
     def _map_transaction(self, item: dict, bank_balance: int) -> Transaction:
         ref = item['REF']
-        item_id = item['ID']
+        refn = item['REFN']
         amount = money_to_minor_units(item['SUM'])
         match item['TRANTYPE']:
             case 'D':
@@ -102,7 +102,7 @@ class PrivatAdapter(BankAdapter):
                 raise BankAdapterError(f"Unknown Privat transaction type '{item['TRANTYPE']}' for {ref}")
 
         return Transaction(
-            unique_id=f'{ref}:{item_id}:{amount}',
+            unique_id=f'{ref}:{refn}:{amount}',
             external_id=ref,
             source_name=self.source_name,
             iban=self.iban,
