@@ -1,5 +1,5 @@
 import asyncio
-import json
+import yaml
 import uuid
 import xml.etree.ElementTree as ET
 from datetime import datetime
@@ -271,23 +271,29 @@ class NovapayAdapter(BankAdapter):
 
     def _load_token_data(self) -> dict[str, str]:
         try:
-            data = json.loads(self.token_file.read_text(encoding='utf-8'))
+            data = yaml.safe_load(self.token_file.read_text(encoding='utf-8')) or {}
         except OSError as exc:
             raise BankAdapterError(f'Cannot read Novapay token file: {self.token_file}') from exc
-        except json.JSONDecodeError as exc:
-            raise BankAdapterError(f'Novapay token file is not valid JSON: {self.token_file}') from exc
+        except yaml.YAMLError as exc:
+            raise BankAdapterError(f'Novapay token file is not valid YAML: {self.token_file}') from exc
+
+        if not isinstance(data, dict):
+            raise BankAdapterError(f'Novapay token file must contain YAML mapping: {self.token_file}')
 
         token = data.get('token')
         certificate = data.get('certificate')
         if not token or not certificate:
             raise BankAdapterError('Novapay token file must contain token and certificate')
-        return {'token': token, 'certificate': certificate}
+        return {'token': str(token), 'certificate': str(certificate)}
 
     def _save_token_data(self, token: str, certificate: str) -> None:
         data = {'token': token, 'certificate': certificate}
         temporary_file = self.token_file.with_name(f'{self.token_file.name}.tmp')
         try:
-            temporary_file.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+            temporary_file.write_text(
+                yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
+                encoding='utf-8',
+            )
             temporary_file.replace(self.token_file)
         except OSError as exc:
             raise BankAdapterError(f'Cannot write Novapay token file: {self.token_file}') from exc
