@@ -23,16 +23,15 @@ class _ShopRowState:
 class RichLogMulti:
     SHOP_STYLES = (
         'green',
-        'yellow',
-        'magenta',
-        'cyan',
-        'white',
-        'red',
-        'bright_green',
         'bright_yellow',
-        'bright_magenta',
         'bright_cyan',
+        'white',
         'bright_red',
+        'bright_green',
+        'yellow',
+        'bright_magenta',
+        'cyan',
+        'red',
         'bright_blue',
     )
 

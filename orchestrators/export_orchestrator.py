@@ -35,7 +35,7 @@ class ExportOrchestrator:
                     f'Exported to {source_name} transactions: {[entry.transaction.external_id for entry in source_entries]}'
                 )
 
-        return exported_entries_num
+        return exported_entries_num   # TODO also return mistakes
 
     async def export_transactions(self, transactions: list[Transaction]) -> None:
         for exporter in self.exporters:

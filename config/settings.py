@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote_plus
+import yaml
 from dotenv import load_dotenv
 
 
@@ -80,14 +81,14 @@ def get_env_bool(var: str) -> bool:
     raise ValueError(f'Environment variable {var} must be boolean, got {value!r}')
 
 
-def load_json(path: Path) -> Any:
+def load_yaml(path: Path) -> Any:
     if not path.exists():
         raise FileNotFoundError(f'Configuration file not found: {path}')
-    return json.loads(path.read_text(encoding='utf-8'))
+    return yaml.safe_load(path.read_text(encoding='utf-8'))
 
 
 def load_google_sheets_columns(path: Path) -> list[GoogleSheetsColumnSettings]:
-    raw_columns = load_json(path)
+    raw_columns = load_yaml(path)
     return [
         GoogleSheetsColumnSettings(field=item['field'], column_number=int(item['column']), header=item['header'])
         for item in raw_columns
@@ -108,17 +109,17 @@ def load_settings() -> Settings:
     url = f'postgresql+asyncpg://{quote_plus(user)}:{quote_plus(password)}@{host}/{db}'
 
     google_credentials_path = Path('/etc/env/credentials.json')
-    columns_path = PROJECT_ROOT / 'config' / 'google_sheets_columns.json'
+    columns_path = PROJECT_ROOT / 'config' / 'google_sheets_columns.yaml'
     spreadsheet_id = get_env('TRANSACTIONS_SPREADSHEET_ID')
     header_row = 2
 
     telegram_enabled = get_env_bool('DO_SEND_TO_BOT')
     telegram_token = get_env('tg_token_tools')
     telegram_admin_chat_id = int(get_env('admin_tg'))
-    bank_sources_path = Path('/etc/env/bank_sources.json')
+    bank_sources_path = Path('/etc/env/bank_sources.yaml')
 
     bank_sources: dict[str, BankSourceSettings] = {}
-    for source_name, payload in load_json(bank_sources_path).items():
+    for source_name, payload in load_yaml(bank_sources_path).items():
         bank_sources[source_name] = BankSourceSettings(
             bank_type=payload['bank_type'],
             sheet_name=payload['sheet_name'],
