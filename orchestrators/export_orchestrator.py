@@ -10,14 +10,15 @@ class ExportOrchestrator:
         self.uow = uow
         self.exporters = exporters
 
-    async def export_pending(self) -> int:
+    async def export_pending(self) -> tuple[int, int]:
         async with self.uow as uow:
             entries = await uow.outbox.get_pending()
 
         if not entries:
-            return 0
+            return 0, 0
 
         exported_entries_num = 0
+        errors_count = 0
         transactions_by_source = defaultdict(list)
         for entry in entries:
             transactions_by_source[entry.transaction.source_name].append(entry)
@@ -27,6 +28,7 @@ class ExportOrchestrator:
                 await self.export_transactions([entry.transaction for entry in source_entries])
             except Exception as exc:
                 logger.error(f'Failed to export transactions for {source_name}: {exc}')
+                errors_count += 1
             else:
                 async with self.uow as uow:
                     await uow.outbox.mark_processed([entry.id for entry in source_entries])
@@ -35,7 +37,7 @@ class ExportOrchestrator:
                     f'Exported to {source_name} transactions: {[entry.transaction.external_id for entry in source_entries]}'
                 )
 
-        return exported_entries_num   # TODO also return mistakes
+        return exported_entries_num, errors_count
 
     async def export_transactions(self, transactions: list[Transaction]) -> None:
         for exporter in self.exporters:

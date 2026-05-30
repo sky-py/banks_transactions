@@ -68,9 +68,10 @@ async def worker(
         start_date = end_date - timedelta(days=import_lookback_days)
 
         try:
-            imported_count = await import_orchestrator.import_transactions(start_date=start_date, end_date=end_date)
-            exported_count = await export_orchestrator.export_pending()
-            logger.bind(area='global').info(f'ALL: imported {imported_count}, exported {exported_count}')
+            imported_count, import_errors = await import_orchestrator.import_transactions(start_date=start_date, end_date=end_date)
+            exported_count, export_errors = await export_orchestrator.export_pending()
+            errors = f'ERRORS: {import_errors}/{export_errors}' if import_errors or export_errors else ''
+            logger.bind(area='global').info(f'Imported/Exported: {imported_count}/{exported_count} {errors}')
             errors_num = 0
         except Exception as exc:
             errors_num += 1

@@ -25,7 +25,7 @@ class ImportOrchestrator:
         self.uow_factory = uow_factory
         self.source_errors: dict[str, int] = defaultdict(int)
 
-    async def import_transactions(self, start_date: datetime, end_date: datetime) -> int:
+    async def import_transactions(self, start_date: datetime, end_date: datetime) -> tuple[int, int]:
         semaphores: dict[str, asyncio.Semaphore] = defaultdict(
             lambda: asyncio.Semaphore(MAX_PARALLEL_IMPORTS_PER_ADAPTER_TYPE)
         )
@@ -41,13 +41,15 @@ class ImportOrchestrator:
         results = await asyncio.gather(*tasks)
 
         imported_count = 0
+        errors_count = 0
         for result in results:
             if result.error is not None:
                 self._handle_import_error(result)
+                errors_count += 1
                 continue
             imported_count += result.imported_count
             self.source_errors[result.source_name] = 0
-        return imported_count
+        return imported_count, errors_count
 
     async def _import_from_adapter_with_limit(
         self, bank_adapter: BankAdapter, semaphore: asyncio.Semaphore, start_date: datetime, end_date: datetime
