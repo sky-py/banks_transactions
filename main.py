@@ -62,7 +62,7 @@ async def worker(
     import_lookback_days: int,
     sleep_seconds: int,
 ) -> None:
-    errors_num = 0
+    worker_errors = 0
     while True:
         end_date = datetime.now()
         start_date = end_date - timedelta(days=import_lookback_days)
@@ -70,13 +70,14 @@ async def worker(
         try:
             imported_count, import_errors = await import_orchestrator.import_transactions(start_date=start_date, end_date=end_date)
             exported_count, export_errors = await export_orchestrator.export_pending()
-            errors = f'ERRORS: {import_errors}/{export_errors}' if import_errors or export_errors else ''
-            logger.bind(area='global').info(f'Imported/Exported: {imported_count}/{exported_count} {errors}')
-            errors_num = 0
+            logger.bind(area='global').info(
+                f'Imported/Exported: {imported_count}/{exported_count}{f' ERRORS: {import_errors}/{export_errors}' if import_errors or export_errors else ''}'
+            )
+            worker_errors = 0
         except Exception as exc:
-            errors_num += 1
-            logger.warning(f'Worker iteration {errors_num} failed {exc}')
-            if errors_num > 5:
+            worker_errors += 1
+            logger.warning(f'Worker iteration {worker_errors} failed {exc}')
+            if worker_errors > 5:
                 raise
 
         if reload_file.exists():
