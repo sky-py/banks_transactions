@@ -13,6 +13,7 @@ from domain.money import money_to_minor_units
 
 
 UNIVERSAL_EXPORT_TIMEOUT_SECONDS = 120
+UNIVERSAL_EXPORT_ERROR_MARKER = 'помилка'
 SET_ENVIRONMENT_FILE_NAME = 'setEnvironment.bat'
 
 
@@ -109,13 +110,13 @@ class UniversalAdapter(BankAdapter):
     def _run_export_sync(self, start_date: datetime, end_date: datetime) -> None:
         command = [str(self.executable), start_date.strftime('%d.%m.%Y'), end_date.strftime('%d.%m.%Y')]
         try:
-            subprocess.run(
+            result = subprocess.run(
                 command,
                 cwd=self.executable.parent,
                 check=True,
                 timeout=UNIVERSAL_EXPORT_TIMEOUT_SECONDS,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
             )
         except subprocess.TimeoutExpired as e:
             raise BankAdapterError(
@@ -123,6 +124,12 @@ class UniversalAdapter(BankAdapter):
             ) from e
         except subprocess.CalledProcessError as e:
             raise BankAdapterError(f'Universal export failed for {self.source_name}: exit code {e.returncode}') from e
+
+        # Java and cmd.exe can emit different Windows console encodings.
+        for encoding in ('utf-8', 'cp1251', 'cp1125'):
+            for line in result.stdout.decode(encoding, errors='replace').splitlines():
+                if UNIVERSAL_EXPORT_ERROR_MARKER in line.casefold():
+                    raise BankAdapterError(f'Universal export failed for {self.source_name}: {line.strip()}')
 
     def _read_transactions_file(self) -> list[dict]:
         if not self.transactions_file.exists():
